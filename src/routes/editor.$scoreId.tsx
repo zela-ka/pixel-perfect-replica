@@ -210,11 +210,12 @@ function Editor({
 
       {(warnings.length > 0 || renderError) && (
         <div className="mx-auto mt-6 max-w-6xl rounded-md border border-accent bg-accent/40 px-4 py-3 text-sm">
-          Some parts of this sheet could not be recognised accurately. Please review the converted
-          score before downloading.
+          {warnings.join(" ")} Some parts of this sheet may not have been recognised accurately.
+          Please review the converted score before downloading.
           {renderError ? ` ${renderError}` : ""}
         </div>
       )}
+
 
       <div className="mx-auto mt-6 grid max-w-6xl gap-6 lg:grid-cols-[1fr_22rem]">
         <div id="score-print" className="score-sheet overflow-x-auto p-4">
