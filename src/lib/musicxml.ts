@@ -110,7 +110,7 @@ export function continuationContext(xml: string) {
 export function mergePages(xmls: string[]): { xml: string; warnings: string[] } {
   const warnings: string[] = [];
   if (xmls.length === 0) throw new Error("There are no converted pages yet.");
-  const base = parseXml(xmls[0]);
+  const base = parseXml(xmls[0]!);
   const baseParts = Array.from(base.getElementsByTagName("part"));
   xmls.slice(1).forEach((xml, i) => {
     const doc = parseXml(xml);

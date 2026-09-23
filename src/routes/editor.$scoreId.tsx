@@ -144,7 +144,7 @@ function PagedEditor({
           image,
           pageNumber,
           totalPages: pageCount,
-          context: continuationContext(next[next.length - 1]),
+          context: continuationContext(next[next.length - 1]!),
         },
       });
       parseXml(musicxml);
@@ -200,7 +200,7 @@ function PagedEditor({
         key={`${current}-${pages.length}`}
         filename={filename}
         pageLabel={`Page ${current + 1} of ${pageCount}` + (remaining > 0 ? ` · ${pages.length} converted` : "")}
-        xml={drafts.current[current] ?? pages[current]}
+        xml={drafts.current[current] ?? pages[current] ?? ""}
         onDraft={(xml) => {
           drafts.current[current] = xml;
         }}
