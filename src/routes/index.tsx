@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { convertPagesToMusicXml } from "@/lib/omr.functions";
+import { convertPageToMusicXml } from "@/lib/omr.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { parseXml, scoreWarnings } from "@/lib/musicxml";
 import { Button } from "@/components/ui/button";
@@ -34,14 +34,14 @@ const MAX_BYTES = 20 * 1024 * 1024;
 const STEPS = [
   "Reading your PDF",
   "Rendering pages",
-  "Recognising music notation",
+  "Recognising page 1",
   "Creating MusicXML",
   "Preparing editable score",
 ] as const;
 
 function UploadPage() {
   const navigate = useNavigate();
-  const convert = useServerFn(convertPagesToMusicXml);
+  const convert = useServerFn(convertPageToMusicXml);
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -98,7 +98,9 @@ function UploadPage() {
       setStep(0);
       const pages = await renderPages(file);
       setStep(2);
-      const { musicxml } = await convert({ data: { filename: file.name, pages } });
+      const { musicxml } = await convert({
+        data: { filename: file.name, image: pages[0], pageNumber: 1, totalPages: pages.length },
+      });
       setStep(3);
 
       const warnings = scoreWarnings(parseXml(musicxml));
@@ -107,6 +109,9 @@ function UploadPage() {
         .insert({
           filename: file.name,
           original_musicxml: musicxml,
+          page_images: pages,
+          page_xml: [musicxml],
+          page_count: pages.length,
           warnings: warnings.join(" "),
         })
         .select("id")
@@ -148,7 +153,7 @@ function UploadPage() {
             ))}
           </ol>
           <p className="mt-8 text-center text-xs text-muted-foreground">
-            Recognition of a multi-page choir score can take a minute or two.
+            Pages are converted one at a time. You review each page before the next one starts.
           </p>
         </div>
       </main>
