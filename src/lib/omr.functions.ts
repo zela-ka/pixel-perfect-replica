@@ -3,7 +3,16 @@ import { z } from "zod";
 
 const inputSchema = z.object({
   filename: z.string().min(1).max(200),
-  pages: z.array(z.string().startsWith("data:image/")).min(1).max(8),
+  image: z.string().startsWith("data:image/").max(8_000_000),
+  pageNumber: z.number().int().min(1).max(50),
+  totalPages: z.number().int().min(1).max(50),
+  context: z
+    .object({
+      partList: z.string().max(20_000),
+      firstMeasure: z.number().int().min(1),
+      lastAttributes: z.string().max(20_000),
+    })
+    .optional(),
 });
 
 const SYSTEM_PROMPT = `You are an optical music recognition engine.
@@ -20,10 +29,13 @@ Rules:
   pitches, durations, rests, ties, slurs and dynamics where legible.
 - Attach lyrics with <lyric number="1"><syllabic>..</syllabic><text>..</text></lyric>
   on the notes that carry them, using single/begin/middle/end syllabic values.
-- Continue measure numbering across the supplied pages so the result is one score.
+- You transcribe ONE page at a time. When context from the previous page is given,
+  reuse exactly the same part-list (same part ids, names and order), start measure
+  numbering at the given number, and keep the key/time/clefs in force unless the
+  page changes them.
 - If part of a page is illegible, still produce valid measures for what you can read.`;
 
-export const convertPagesToMusicXml = createServerFn({ method: "POST" })
+export const convertPageToMusicXml = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => inputSchema.parse(data))
   .handler(async ({ data }) => {
     const apiKey = process.env["LOVABLE_API_KEY"];
@@ -44,12 +56,15 @@ export const convertPagesToMusicXml = createServerFn({ method: "POST" })
             content: [
               {
                 type: "text",
-                text: `Transcribe these ${data.pages.length} page(s) of "${data.filename}" into one MusicXML document.`,
+                text:
+                  `Transcribe page ${data.pageNumber} of ${data.totalPages} of "${data.filename}" into one MusicXML document.` +
+                  (data.context
+                    ? `\n\nThis continues the previous page. Start measure numbers at ${data.context.firstMeasure}.` +
+                      `\nUse exactly this part-list:\n${data.context.partList}` +
+                      `\nAttributes in force at the end of the previous page (per part):\n${data.context.lastAttributes}`
+                    : ""),
               },
-              ...data.pages.map((url) => ({
-                type: "image_url" as const,
-                image_url: { url },
-              })),
+              { type: "image_url" as const, image_url: { url: data.image } },
             ],
           },
         ],

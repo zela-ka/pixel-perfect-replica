@@ -13,6 +13,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { useServerFn } from "@tanstack/react-start";
+import { convertPageToMusicXml } from "@/lib/omr.functions";
+import { continuationContext, mergePages } from "@/lib/musicxml";
 
 export const Route = createFileRoute("/editor/$scoreId")({
   head: () => ({
@@ -43,7 +46,7 @@ function EditorPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("scores")
-        .select("id, filename, original_musicxml, edited_musicxml, warnings")
+        .select("id, filename, original_musicxml, edited_musicxml, warnings, page_xml, page_images, page_count")
         .eq("id", scoreId)
         .maybeSingle();
       if (error) throw new Error(error.message);
@@ -74,22 +77,154 @@ function EditorPage() {
   }
 
   return (
-    <Editor
+    <PagedEditor
       scoreId={scoreId}
       filename={data.filename}
-      xml={data.edited_musicxml || data.original_musicxml}
+      initialPages={data.page_xml.length ? data.page_xml : [data.edited_musicxml || data.original_musicxml]}
+      images={data.page_images}
+      pageCount={Math.max(data.page_count, data.page_xml.length, 1)}
     />
   );
 }
 
-function Editor({
+function PagedEditor({
   scoreId,
   filename,
-  xml,
+  initialPages,
+  images,
+  pageCount,
 }: {
   scoreId: string;
   filename: string;
+  initialPages: string[];
+  images: string[];
+  pageCount: number;
+}) {
+  const convert = useServerFn(convertPageToMusicXml);
+  const [pages, setPages] = useState<string[]>(initialPages);
+  const [current, setCurrent] = useState(initialPages.length - 1);
+  const [converting, setConverting] = useState(false);
+  const [convertError, setConvertError] = useState<string | null>(null);
+  const drafts = useRef<Record<number, string>>({});
+
+  function collected(): string[] {
+    return pages.map((xml, i) => drafts.current[i] ?? xml);
+  }
+
+  async function persist(next: string[]) {
+    const merged = mergePages(next);
+    const { error } = await supabase
+      .from("scores")
+      .update({ page_xml: next, edited_musicxml: merged.xml })
+      .eq("id", scoreId);
+    if (error) throw new Error(error.message);
+    return merged;
+  }
+
+  async function save() {
+    const next = collected();
+    setPages(next);
+    await persist(next);
+  }
+
+  async function approveAndContinue() {
+    setConvertError(null);
+    setConverting(true);
+    try {
+      const next = collected();
+      drafts.current = {};
+      setPages(next);
+      await persist(next);
+      const pageNumber = next.length + 1;
+      const image = images[pageNumber - 1];
+      if (!image) throw new Error("The image for the next page is missing. Please upload again.");
+      const { musicxml } = await convert({
+        data: {
+          filename,
+          image,
+          pageNumber,
+          totalPages: pageCount,
+          context: continuationContext(next[next.length - 1]!),
+        },
+      });
+      parseXml(musicxml);
+      const withNew = [...next, musicxml];
+      setPages(withNew);
+      await persist(withNew);
+      setCurrent(withNew.length - 1);
+      toast.success(`Page ${pageNumber} is ready to review.`);
+    } catch (e) {
+      setConvertError(e instanceof Error ? e.message : "Converting the next page failed.");
+    } finally {
+      setConverting(false);
+    }
+  }
+
+  function exportMerged() {
+    return mergePages(collected());
+  }
+
+  const remaining = pageCount - pages.length;
+
+  return (
+    <div>
+      <nav className="mx-auto flex max-w-6xl flex-wrap items-center gap-2 px-4 pt-6 sm:px-8">
+        <span className="mr-2 text-xs uppercase tracking-widest text-muted-foreground">Pages</span>
+        {Array.from({ length: pageCount }, (_, i) => (
+          <Button
+            key={i}
+            size="sm"
+            variant={i === current ? "default" : "outline"}
+            disabled={i >= pages.length}
+            onClick={() => setCurrent(i)}
+          >
+            {i + 1}
+          </Button>
+        ))}
+        <div className="ml-auto flex items-center gap-2">
+          {remaining > 0 ? (
+            <Button onClick={approveAndContinue} disabled={converting}>
+              {converting
+                ? `Converting page ${pages.length + 1}…`
+                : `Approve & convert page ${pages.length + 1}`}
+            </Button>
+          ) : (
+            <span className="text-sm text-muted-foreground">All {pageCount} pages converted</span>
+          )}
+        </div>
+      </nav>
+      {convertError && (
+        <p className="mx-auto mt-3 max-w-6xl px-4 text-sm text-destructive sm:px-8">{convertError}</p>
+      )}
+      <Editor
+        key={`${current}-${pages.length}`}
+        filename={filename}
+        pageLabel={`Page ${current + 1} of ${pageCount}` + (remaining > 0 ? ` · ${pages.length} converted` : "")}
+        xml={drafts.current[current] ?? pages[current] ?? ""}
+        onDraft={(xml) => {
+          drafts.current[current] = xml;
+        }}
+        onSave={save}
+        getExport={exportMerged}
+      />
+    </div>
+  );
+}
+
+function Editor({
+  filename,
+  pageLabel,
+  xml,
+  onDraft,
+  onSave,
+  getExport,
+}: {
+  filename: string;
+  pageLabel: string;
   xml: string;
+  onDraft: (xml: string) => void;
+  onSave: () => Promise<void>;
+  getExport: () => { xml: string; warnings: string[] };
 }) {
   const doc = useMemo(() => parseXml(xml), [xml]);
   const [syllables, setSyllables] = useState<Syllable[]>(() => collectSyllables(doc));
@@ -127,7 +262,13 @@ function Editor({
   }, [currentXml]);
 
   function updateSyllable(index: number, text: string) {
-    setSyllables((prev) => prev.map((s, i) => (i === index ? { ...s, text } : s)));
+    setSyllables((prev) => {
+      const next = prev.map((s, i) => (i === index ? { ...s, text } : s));
+      const d = parseXml(currentXml);
+      applySyllables(d, next);
+      onDraft(serializeXml(d));
+      return next;
+    });
     setDirty(true);
   }
 
@@ -140,18 +281,15 @@ function Editor({
   function applyToScore() {
     const next = buildXml();
     setCurrentXml(next);
+    onDraft(next);
     return next;
   }
 
   async function save() {
     setSaving(true);
     try {
-      const next = applyToScore();
-      const { error } = await supabase
-        .from("scores")
-        .update({ edited_musicxml: next })
-        .eq("id", scoreId);
-      if (error) throw new Error(error.message);
+      applyToScore();
+      await onSave();
       setDirty(false);
       toast.success("Your lyric changes are saved.");
     } catch (e) {
@@ -162,7 +300,10 @@ function Editor({
   }
 
   function download() {
-    const next = applyToScore();
+    applyToScore();
+    const merged = getExport();
+    merged.warnings.forEach((w) => toast.warning(w));
+    const next = merged.xml;
     const blob = new Blob([next], { type: "application/vnd.recordare.musicxml+xml" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -172,9 +313,17 @@ function Editor({
     URL.revokeObjectURL(url);
   }
 
-  function exportPdf() {
+  async function exportPdf() {
     applyToScore();
-    setTimeout(() => window.print(), 300);
+    const merged = getExport();
+    if (osmd.current) {
+      await osmd.current.load(merged.xml);
+      osmd.current.render();
+    }
+    setTimeout(() => {
+      window.print();
+      setCurrentXml(buildXml() + " ");
+    }, 300);
   }
 
   const groups = useMemo(() => {
@@ -192,7 +341,7 @@ function Editor({
       <header className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl">Score Editor</h1>
-          <p className="text-sm text-muted-foreground">{filename}</p>
+          <p className="text-sm text-muted-foreground">{filename} · {pageLabel}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="ghost" asChild>
@@ -201,7 +350,7 @@ function Editor({
           <Button variant="outline" onClick={save} disabled={saving}>
             {saving ? "Saving…" : dirty ? "Save" : "Saved"}
           </Button>
-          <Button onClick={download}>Download MusicXML</Button>
+          <Button onClick={download}>Download MusicXML (all pages)</Button>
           <Button variant="secondary" onClick={exportPdf}>
             Export PDF
           </Button>

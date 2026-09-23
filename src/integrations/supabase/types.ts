@@ -21,6 +21,9 @@ export type Database = {
           filename: string
           id: string
           original_musicxml: string
+          page_count: number
+          page_images: string[]
+          page_xml: string[]
           updated_at: string
           warnings: string | null
         }
@@ -30,6 +33,9 @@ export type Database = {
           filename: string
           id?: string
           original_musicxml: string
+          page_count?: number
+          page_images?: string[]
+          page_xml?: string[]
           updated_at?: string
           warnings?: string | null
         }
@@ -39,6 +45,9 @@ export type Database = {
           filename?: string
           id?: string
           original_musicxml?: string
+          page_count?: number
+          page_images?: string[]
+          page_xml?: string[]
           updated_at?: string
           warnings?: string | null
         }
