@@ -163,6 +163,23 @@
   box-shadow: 0 1px 2px oklch(0.3 0.03 45 / 0.06), 0 12px 32px oklch(0.3 0.03 45 / 0.08);
 }
 
+.score-pages svg {
+  display: block;
+  margin-inline: auto;
+  max-width: 100%;
+}
+
+.editable-score-lyric {
+  cursor: text;
+  outline: none;
+}
+
+.editable-score-lyric:hover text,
+.editable-score-lyric:focus text {
+  fill: var(--color-primary);
+  text-decoration: underline;
+}
+
 @media print {
   body * {
     visibility: hidden;
@@ -178,6 +195,12 @@
     inset: 0;
     border: none;
     box-shadow: none;
+    padding: 0;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 0;
   }
 }
 

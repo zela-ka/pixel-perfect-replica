@@ -11,7 +11,6 @@ import {
   type Syllable,
 } from "@/lib/musicxml";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 
 import { convertPage } from "@/lib/omr-client";
@@ -232,6 +231,7 @@ function Editor({
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [renderError, setRenderError] = useState<string | null>(null);
+  const [activeSyllable, setActiveSyllable] = useState<number | null>(null);
   const warnings = useMemo(() => scoreWarnings(doc), [doc]);
 
   const container = useRef<HTMLDivElement>(null);
@@ -244,14 +244,49 @@ function Editor({
       if (cancelled || !container.current) return;
       if (!osmd.current) {
         osmd.current = new OpenSheetMusicDisplay(container.current, {
-          autoResize: true,
+          autoResize: false,
           backend: "svg",
           drawTitle: true,
-});
+          pageFormat: "A4_P",
+          newSystemFromXML: true,
+          newPageFromXML: true,
+        });
       }
       try {
         await osmd.current.load(currentXml);
-        if (!cancelled) osmd.current.render();
+        if (!cancelled) {
+          const rules = osmd.current.EngravingRules;
+          rules.PageLeftMargin = 3.2;
+          rules.PageRightMargin = 3.2;
+          rules.PageTopMargin = 3.5;
+          rules.PageBottomMargin = 3.5;
+          rules.MinimumDistanceBetweenSystems = 2;
+          rules.MinSkyBottomDistBetweenSystems = 1.5;
+          rules.StaffDistance = 5.5;
+          rules.BetweenStaffDistance = 4.5;
+          rules.LyricsHeight = 1.8;
+          osmd.current.render();
+          requestAnimationFrame(() => {
+            if (cancelled || !osmd.current || !container.current) return;
+            const lyricEntries = osmd.current.GraphicSheet.MeasureList
+              .flat()
+              .flatMap((measure) => measure?.staffEntries ?? [])
+              .flatMap((entry) => entry.LyricsEntries ?? []);
+            lyricEntries.forEach((entry, index) => {
+              const node = entry.GraphicalLabel?.SVGNode as SVGElement | undefined;
+              if (!node) return;
+              node.classList.add("editable-score-lyric");
+              node.setAttribute("role", "button");
+              node.setAttribute("tabindex", "0");
+              node.setAttribute("aria-label", `Edit lyric ${index + 1}`);
+              const select = () => setActiveSyllable(index);
+              node.addEventListener("click", select);
+              node.addEventListener("keydown", (event) => {
+                if (event.key === "Enter" || event.key === " ") select();
+              });
+            });
+          });
+        }
       } catch {
         if (!cancelled) setRenderError("The recognised notation could not be displayed.");
       }
@@ -326,16 +361,6 @@ function Editor({
     }, 300);
   }
 
-  const groups = useMemo(() => {
-    const map = new Map<string, { index: number; syllable: Syllable }[]>();
-    syllables.forEach((syllable, index) => {
-      const list = map.get(syllable.partName) ?? [];
-      list.push({ index, syllable });
-      map.set(syllable.partName, list);
-    });
-    return Array.from(map.entries());
-  }, [syllables]);
-
   return (
     <main className="min-h-screen px-4 py-8 sm:px-8">
       <header className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4">
@@ -366,47 +391,29 @@ function Editor({
       )}
 
 
-      <div className="mx-auto mt-6 grid max-w-6xl gap-6 lg:grid-cols-[1fr_22rem]">
-        <div id="score-print" className="score-sheet overflow-x-auto p-4">
+      <div className="mx-auto mt-6 max-w-6xl">
+        <div className="mb-3 flex min-h-12 items-center gap-3 border-y bg-card px-3 py-2">
+          {activeSyllable === null ? (
+            <p className="text-sm text-muted-foreground">Select any lyric beneath a note to edit it.</p>
+          ) : (
+            <>
+              <span className="text-xs uppercase tracking-widest text-muted-foreground">
+                {syllables[activeSyllable]?.partName} · measure {syllables[activeSyllable]?.measure}
+              </span>
+              <input
+                autoFocus
+                value={syllables[activeSyllable]?.text ?? ""}
+                aria-label="Selected lyric"
+                onChange={(event) => updateSyllable(activeSyllable, event.target.value)}
+                className="h-9 min-w-32 border-b bg-transparent px-2 text-center text-base outline-none focus:border-primary"
+              />
+              <Button size="sm" variant="outline" onClick={applyToScore}>Apply to score</Button>
+            </>
+          )}
+        </div>
+        <div id="score-print" className="score-sheet score-pages overflow-x-auto p-2 sm:p-4">
           <div ref={container} />
         </div>
-
-        <aside className="score-sheet h-fit p-4">
-          <h2 className="text-xl">Lyrics</h2>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Replace any syllable. The notes, rhythm and staves stay exactly as recognised.
-          </p>
-          {groups.length === 0 && (
-            <p className="mt-4 text-sm text-muted-foreground">
-              No lyrics were recognised on this score.
-            </p>
-          )}
-          <div className="mt-4 max-h-[70vh] space-y-6 overflow-y-auto pr-1">
-            {groups.map(([partName, items]) => (
-              <div key={partName}>
-                <p className="text-xs uppercase tracking-widest text-muted-foreground">
-                  {partName}
-                </p>
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  {items.map(({ index, syllable }) => (
-                    <Input
-                      key={syllable.key}
-                      value={syllable.text}
-                      aria-label={`Syllable in measure ${syllable.measure}`}
-                      onChange={(e) => updateSyllable(index, e.target.value)}
-                      className="h-8 text-sm"
-                    />
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-          {dirty && (
-            <Button variant="outline" className="mt-4 w-full" onClick={() => applyToScore()}>
-              Update notation preview
-            </Button>
-          )}
-        </aside>
       </div>
     </main>
   );
