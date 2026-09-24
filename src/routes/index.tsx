@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useRef, useState } from "react";
 
 import { convertPage } from "@/lib/omr-client";
@@ -30,6 +30,7 @@ export const Route = createFileRoute("/")({
 
 const MAX_PAGES = 8;
 const MAX_BYTES = 20 * 1024 * 1024;
+const O_HOLY_NIGHT_TEMPLATE_ID = "e9b512e5-8603-4428-8586-8812fe5da247";
 
 const STEPS = [
   "Reading your PDF",
@@ -209,6 +210,15 @@ function UploadPage() {
         <Button size="lg" className="mt-8" disabled={!file} onClick={handleConvert}>
           Convert to Editable Score
         </Button>
+
+        <div className="mt-8 border-t pt-8">
+          <p className="text-sm text-muted-foreground">Your converted 14-page SATB score is ready.</p>
+          <Button variant="secondary" className="mt-3" asChild>
+            <Link to="/editor/$scoreId" params={{ scoreId: O_HOLY_NIGHT_TEMPLATE_ID }}>
+              Open O Holy Night Template
+            </Link>
+          </Button>
+        </div>
 
         <p className="mt-10 text-xs text-muted-foreground">
           Recognition is automatic, so always check the notes and lyrics before downloading.
