@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
-import { convertPageToMusicXml } from "@/lib/omr.functions";
+import { convertPage } from "@/lib/omr-client";
 import { continuationContext, mergePages } from "@/lib/musicxml";
 
 export const Route = createFileRoute("/editor/$scoreId")({
@@ -100,7 +100,7 @@ function PagedEditor({
   images: string[];
   pageCount: number;
 }) {
-  const convert = useServerFn(convertPageToMusicXml);
+  const convert = convertPage;
   const [pages, setPages] = useState<string[]>(initialPages);
   const [current, setCurrent] = useState(initialPages.length - 1);
   const [converting, setConverting] = useState(false);
