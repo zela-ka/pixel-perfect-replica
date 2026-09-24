@@ -276,6 +276,11 @@ function Editor({
               const node = entry.GraphicalLabel?.SVGNode as SVGElement | undefined;
               if (!node) return;
               node.classList.add("editable-score-lyric");
+              const textNode = node.querySelector("text");
+              if (textNode && !(textNode.textContent ?? "").replace(/\u200b/g, "").trim()) {
+                textNode.textContent = "lyrics";
+                node.classList.add("empty-score-lyric");
+              }
               node.setAttribute("role", "button");
               node.setAttribute("tabindex", "0");
               node.setAttribute("aria-label", `Edit lyric ${index + 1}`);

@@ -180,6 +180,18 @@
   text-decoration: underline;
 }
 
+.empty-score-lyric text {
+  fill: var(--color-muted-foreground);
+  font-style: italic;
+  opacity: 0.55;
+}
+
+.empty-score-lyric:hover text,
+.empty-score-lyric:focus text {
+  fill: var(--color-primary);
+  opacity: 1;
+}
+
 @media print {
   body * {
     visibility: hidden;
