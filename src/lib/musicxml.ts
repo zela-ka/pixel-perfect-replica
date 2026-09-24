@@ -165,7 +165,10 @@ export function mergePages(xmls: string[]): { xml: string; warnings: string[] } 
         const key = Array.from(attributes.children).find((el) => el.tagName === "key");
         const time = Array.from(attributes.children).find((el) => el.tagName === "time");
         const existing = synchronized.get(number) ?? {};
-        synchronized.set(number, { key: existing.key ?? key, time: existing.time ?? time });
+        const next: { key?: Element; time?: Element } = { ...existing };
+        if (!next.key && key) next.key = key;
+        if (!next.time && time) next.time = time;
+        synchronized.set(number, next);
       });
   });
   baseParts.forEach((part) => {
