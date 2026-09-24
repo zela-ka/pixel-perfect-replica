@@ -167,7 +167,7 @@ function PagedEditor({
 
   return (
     <div>
-      <nav className="mx-auto flex max-w-6xl flex-wrap items-center gap-2 px-4 pt-6 sm:px-8">
+      {pageCount > 1 && images.length > 0 && <nav className="mx-auto flex max-w-6xl flex-wrap items-center gap-2 px-4 pt-6 sm:px-8">
         <span className="mr-2 text-xs uppercase tracking-widest text-muted-foreground">Pages</span>
         {Array.from({ length: pageCount }, (_, i) => (
           <Button
@@ -191,7 +191,7 @@ function PagedEditor({
             <span className="text-sm text-muted-foreground">All {pageCount} pages converted</span>
           )}
         </div>
-      </nav>
+      </nav>}
       {convertError && (
         <p className="mx-auto mt-3 max-w-6xl px-4 text-sm text-destructive sm:px-8">{convertError}</p>
       )}
@@ -247,19 +247,20 @@ function Editor({
           autoResize: false,
           backend: "svg",
           drawTitle: true,
-          pageFormat: "A4_P",
+          pageFormat: "Endless",
           newSystemFromXML: true,
-          newPageFromXML: true,
+          newSystemFromNewPageInXML: true,
+          newPageFromXML: false,
         });
       }
       try {
         await osmd.current.load(currentXml);
         if (!cancelled) {
           const rules = osmd.current.EngravingRules;
-          rules.PageLeftMargin = 3.2;
-          rules.PageRightMargin = 3.2;
-          rules.PageTopMargin = 3.5;
-          rules.PageBottomMargin = 3.5;
+          rules.PageLeftMargin = 2.8;
+          rules.PageRightMargin = 2.8;
+          rules.PageTopMargin = 3;
+          rules.PageBottomMargin = 3;
           rules.MinimumDistanceBetweenSystems = 2;
           rules.MinSkyBottomDistBetweenSystems = 1.5;
           rules.StaffDistance = 5.5;
@@ -276,6 +277,11 @@ function Editor({
               const node = entry.GraphicalLabel?.SVGNode as SVGElement | undefined;
               if (!node) return;
               node.classList.add("editable-score-lyric");
+              const textNode = node.querySelector("text");
+              if (textNode && !(textNode.textContent ?? "").replace(/\u200b/g, "").trim()) {
+                textNode.textContent = "lyrics";
+                node.classList.add("empty-score-lyric");
+              }
               node.setAttribute("role", "button");
               node.setAttribute("tabindex", "0");
               node.setAttribute("aria-label", `Edit lyric ${index + 1}`);
