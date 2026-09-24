@@ -167,7 +167,7 @@ function PagedEditor({
 
   return (
     <div>
-      <nav className="mx-auto flex max-w-6xl flex-wrap items-center gap-2 px-4 pt-6 sm:px-8">
+      {pageCount > 1 && images.length > 0 && <nav className="mx-auto flex max-w-6xl flex-wrap items-center gap-2 px-4 pt-6 sm:px-8">
         <span className="mr-2 text-xs uppercase tracking-widest text-muted-foreground">Pages</span>
         {Array.from({ length: pageCount }, (_, i) => (
           <Button
@@ -191,7 +191,7 @@ function PagedEditor({
             <span className="text-sm text-muted-foreground">All {pageCount} pages converted</span>
           )}
         </div>
-      </nav>
+      </nav>}
       {convertError && (
         <p className="mx-auto mt-3 max-w-6xl px-4 text-sm text-destructive sm:px-8">{convertError}</p>
       )}
