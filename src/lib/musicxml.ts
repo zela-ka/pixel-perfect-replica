@@ -125,7 +125,20 @@ export function mergePages(xmls: string[]): { xml: string; warnings: string[] } 
       if (!target) return;
       Array.from(part.children)
         .filter((el) => el.tagName === "measure")
-        .forEach((m) => target.appendChild(base.importNode(m, true)));
+        .forEach((m) => {
+          const imported = base.importNode(m, true) as Element;
+          // Page fragments are laid out independently by the recogniser. Their
+          // first-measure print block must not force a second title/page when
+          // the fragments are joined. Genuine later XML breaks are retained.
+          Array.from(imported.children)
+            .filter((el) => el.tagName === "print")
+            .forEach((print) => {
+              print.removeAttribute("new-page");
+              print.removeAttribute("new-system");
+              if (print.attributes.length === 0 && print.children.length === 0) print.remove();
+            });
+          target.appendChild(imported);
+        });
     });
   });
   baseParts.forEach((part) => {
@@ -135,6 +148,43 @@ export function mergePages(xmls: string[]): { xml: string; warnings: string[] } 
       .forEach((m) => {
         if (m.getAttribute("implicit") === "yes" && n === 1) m.setAttribute("number", "0");
         else m.setAttribute("number", String(n++));
+      });
+  });
+
+  // A key or meter change is a score-wide event. If one staff was missed by
+  // recognition, copy only that confirmed attribute to the corresponding
+  // measure in the other parts. Notes and rhythms are never modified.
+  const synchronized = new Map<string, { key?: Element; time?: Element }>();
+  baseParts.forEach((part) => {
+    Array.from(part.children)
+      .filter((el) => el.tagName === "measure")
+      .forEach((measure) => {
+        const number = measure.getAttribute("number") ?? "";
+        const attributes = Array.from(measure.children).find((el) => el.tagName === "attributes");
+        if (!attributes) return;
+        const key = Array.from(attributes.children).find((el) => el.tagName === "key");
+        const time = Array.from(attributes.children).find((el) => el.tagName === "time");
+        const existing = synchronized.get(number) ?? {};
+        synchronized.set(number, { key: existing.key ?? key, time: existing.time ?? time });
+      });
+  });
+  baseParts.forEach((part) => {
+    Array.from(part.children)
+      .filter((el) => el.tagName === "measure")
+      .forEach((measure) => {
+        const known = synchronized.get(measure.getAttribute("number") ?? "");
+        if (!known?.key && !known?.time) return;
+        let attributes = Array.from(measure.children).find((el) => el.tagName === "attributes");
+        if (!attributes) {
+          attributes = base.createElement("attributes");
+          measure.insertBefore(attributes, measure.firstChild);
+        }
+        if (known.key && !Array.from(attributes.children).some((el) => el.tagName === "key")) {
+          attributes.appendChild(base.importNode(known.key, true));
+        }
+        if (known.time && !Array.from(attributes.children).some((el) => el.tagName === "time")) {
+          attributes.appendChild(base.importNode(known.time, true));
+        }
       });
   });
   return { xml: serializeXml(base), warnings };
