@@ -247,19 +247,20 @@ function Editor({
           autoResize: false,
           backend: "svg",
           drawTitle: true,
-          pageFormat: "A4_P",
+          pageFormat: "Endless",
           newSystemFromXML: true,
-          newPageFromXML: true,
+          newSystemFromNewPageInXML: true,
+          newPageFromXML: false,
         });
       }
       try {
         await osmd.current.load(currentXml);
         if (!cancelled) {
           const rules = osmd.current.EngravingRules;
-          rules.PageLeftMargin = 3.2;
-          rules.PageRightMargin = 3.2;
-          rules.PageTopMargin = 3.5;
-          rules.PageBottomMargin = 3.5;
+          rules.PageLeftMargin = 2.8;
+          rules.PageRightMargin = 2.8;
+          rules.PageTopMargin = 3;
+          rules.PageBottomMargin = 3;
           rules.MinimumDistanceBetweenSystems = 2;
           rules.MinSkyBottomDistBetweenSystems = 1.5;
           rules.StaffDistance = 5.5;
