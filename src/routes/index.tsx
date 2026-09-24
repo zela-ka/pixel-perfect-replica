@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useRef, useState } from "react";
-import { useServerFn } from "@tanstack/react-start";
+
 import { convertPage } from "@/lib/omr-client";
 import { supabase } from "@/integrations/supabase/client";
 import { parseXml, scoreWarnings } from "@/lib/musicxml";
@@ -99,7 +99,7 @@ function UploadPage() {
       const pages = await renderPages(file);
       setStep(2);
       const { musicxml } = await convert({
-        data: { filename: file.name, image: pages[0], pageNumber: 1, totalPages: pages.length },
+        data: { filename: file.name, image: pages[0]!, pageNumber: 1, totalPages: pages.length },
       });
       setStep(3);
 
