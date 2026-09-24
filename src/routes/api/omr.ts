@@ -33,6 +33,9 @@ Rules:
   reuse exactly the same part-list (same part ids, names and order), start measure
   numbering at the given number, and keep the key/time/clefs in force unless the
   page changes them.
+- The page may carry watermarks, stamps, logos or background text (e.g. website
+  names, "preview", "sample"). Ignore them completely: never read them as notes,
+  lyrics, titles, dynamics or text. Transcribe only the printed music.
 - If part of a page is illegible, still produce valid measures for what you can read.`;
 
 export const Route = createFileRoute("/api/omr")({
@@ -56,6 +59,7 @@ export const Route = createFileRoute("/api/omr")({
           body: JSON.stringify({
             model: "google/gemini-3.1-pro-preview",
             stream: true,
+            reasoning: { effort: "low" },
             messages: [
               { role: "system", content: SYSTEM_PROMPT },
               {
